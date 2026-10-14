@@ -2,12 +2,14 @@
 # ============================================================
 # DIY Part 2 - Executed AFTER feeds install, BEFORE make
 # For VIKINGYFY/ImmortalWrt main branch (ZN-M2 already supported)
+# MINIMAL DAE EDITION: dae + luci-app-dae + tailscale only
 # ============================================================
 
 set -e
 
 echo "============================================"
-echo " DIY Part 2: Customizing VIKINGYFW/ImmortalWrt"
+echo " DIY Part 2: Customizing VIKINGYFY/ImmortalWrt"
+echo "             (minimal dae edition)"
 echo "============================================"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -17,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # "DEFAULT_PACKAGES += \" and the actual package names live on the tab-indented
 # continuation lines. Sed must target those continuation lines, otherwise
 # nothing gets removed at all.
-echo "[1/6] Removing WiFi from DEFAULT_PACKAGES..."
+echo "[1/3] Removing WiFi from DEFAULT_PACKAGES..."
 TARGET_MAKEFILE="target/linux/qualcommax/Makefile"
 IPQ60XX_MK="target/linux/qualcommax/ipq60xx/target.mk"
 
@@ -45,101 +47,31 @@ echo "  -> Default packages after cleanup:"
 sed -n '/^DEFAULT_PACKAGES/,/^\$(eval/p' "$TARGET_MAKEFILE" 2>/dev/null | head -8
 grep "^DEFAULT_PACKAGES" "$IPQ60XX_MK" 2>/dev/null || true
 
-# 2. Clone and install rtp2httpd as a package
-echo "[2/6] Adding rtp2httpd package..."
-if [ ! -d "package/rtp2httpd" ]; then
-    git clone --depth 1 https://github.com/stackia/rtp2httpd.git /tmp/rtp2httpd 2>/dev/null || {
-        echo "  -> Failed to clone from github.com, trying mirror..."
-        git clone --depth 1 https://gitcode.com/stackia/rtp2httpd.git /tmp/rtp2httpd 2>/dev/null || {
-            echo "  -> WARNING: Could not clone rtp2httpd. Will try lance65 fork."
-            git clone --depth 1 https://github.com/lance65/rtp2httpd.git /tmp/rtp2httpd
-        }
-    }
-
-    if [ -d "/tmp/rtp2httpd/openwrt-support" ]; then
-        cp -r /tmp/rtp2httpd/openwrt-support/rtp2httpd package/rtp2httpd 2>/dev/null || true
-        cp -r /tmp/rtp2httpd/openwrt-support/luci-app-rtp2httpd package/luci-app-rtp2httpd 2>/dev/null || true
-        if [ -d "/tmp/rtp2httpd/openwrt-support/rtp2httpd/files" ]; then
-            cp -r /tmp/rtp2httpd/openwrt-support/rtp2httpd/files/* package/rtp2httpd/files/ 2>/dev/null || true
-        fi
-        echo "  -> rtp2httpd package added"
+# 2. Add dae + luci-app-dae as packages
+# Cloned from ysuolmai/luci-app-dae (maintained fork used in production
+# DAE firmware builds). The repo ships the dae core (tracking
+# daeuniverse/dae main) and the luci-app-dae LuCI interface with zh_Hans.
+# Must land in package/ BEFORE `make defconfig` so CONFIG_PACKAGE_dae=y
+# and CONFIG_PACKAGE_luci-app-dae=y resolve.
+echo "[2/3] Adding dae + luci-app-dae packages..."
+if [ ! -d "package/dae" ] || [ ! -d "package/luci-app-dae" ]; then
+    git clone --depth 1 https://github.com/ysuolmai/luci-app-dae.git /tmp/luci-app-dae
+    if [ -d "/tmp/luci-app-dae/dae" ] && [ -d "/tmp/luci-app-dae/luci-app-dae" ]; then
+        rm -rf package/dae package/luci-app-dae
+        cp -r /tmp/luci-app-dae/dae package/dae
+        cp -r /tmp/luci-app-dae/luci-app-dae package/luci-app-dae
+        echo "  -> dae + luci-app-dae packages added"
     else
-        echo "  -> ERROR: openwrt-support not found in rtp2httpd repo"
+        echo "  -> ERROR: dae / luci-app-dae directories not found in cloned repo!"
+        exit 1
     fi
-    rm -rf /tmp/rtp2httpd
+    rm -rf /tmp/luci-app-dae
 else
-    echo "  -> rtp2httpd package already exists"
+    echo "  -> dae packages already exist"
 fi
 
-# 3. Clone and install gecoosac (集客AC controller) as a package
-echo "[3/6] Adding gecoosac (集客AC) package..."
-if [ ! -d "package/luci-app-gecoosac" ]; then
-    git clone --depth 1 https://github.com/laipeng668/luci-app-gecoosac.git package/luci-app-gecoosac 2>/dev/null || {
-        echo "  -> Failed to clone from github.com, trying gitcode mirror..."
-        git clone --depth 1 https://gitcode.com/laipeng668/luci-app-gecoosac.git package/luci-app-gecoosac 2>/dev/null || {
-            echo "  -> ERROR: Could not clone gecoosac repo!"
-        }
-    }
-    if [ -d "package/luci-app-gecoosac/gecoosac" ] && [ -d "package/luci-app-gecoosac/luci-app-gecoosac" ]; then
-        echo "  -> gecoosac + luci-app-gecoosac packages added"
-    else
-        echo "  -> WARNING: gecoosac package structure incomplete"
-    fi
-else
-    echo "  -> gecoosac package already exists"
-fi
-
-# 4. Clone and install fullconenat-nft as a package
-echo "[4/6] Adding fullconenat-nft (Full Cone NAT) package..."
-if [ ! -d "package/fullconenat-nft" ]; then
-    git clone --depth 1 https://github.com/hubbylei/fullconenat-nft.git /tmp/fullconenat-nft 2>/dev/null || {
-        echo "  -> Failed to clone from github.com, trying gitcode mirror..."
-        git clone --depth 1 https://gitcode.com/hubbylei/fullconenat-nft.git /tmp/fullconenat-nft 2>/dev/null || {
-            echo "  -> ERROR: Could not clone fullconenat-nft repo!"
-        }
-    }
-    if [ -d "/tmp/fullconenat-nft" ]; then
-        # Copy Makefile and patches (not .github folder)
-        mkdir -p package/fullconenat-nft
-        cp /tmp/fullconenat-nft/Makefile package/fullconenat-nft/Makefile
-        if [ -d "/tmp/fullconenat-nft/patches" ]; then
-            cp -r /tmp/fullconenat-nft/patches package/fullconenat-nft/
-        fi
-        echo "  -> fullconenat-nft (kmod-nft-fullcone) package added"
-        rm -rf /tmp/fullconenat-nft
-    fi
-else
-    echo "  -> fullconenat-nft package already exists"
-fi
-
-# 5. Add luci-app-turboacc
-# The immortalwrt/luci feed no longer ships luci-app-turboacc, so use the
-# maintained fork. Only the LuCI app is needed: on qualcommax the accelerator
-# is QCA-NSS-ECM (already installed via DEFAULT_PACKAGES) and the app detects
-# it at runtime through /sys/kernel/debug/ecm/ecm_nss_ipv4.
-# The Shortcut-FE / fast-classifier kernel modules are intentionally NOT added:
-# they do not exist in this source tree and are not required.
-echo "[5/6] Adding luci-app-turboacc..."
-if [ ! -d "package/luci-app-turboacc" ]; then
-    git clone --depth 1 https://github.com/chenmozhijin/turboacc.git /tmp/turboacc 2>/dev/null || {
-        echo "  -> Failed to clone from github.com, trying gitcode mirror..."
-        git clone --depth 1 https://gitcode.com/chenmozhijin/turboacc.git /tmp/turboacc 2>/dev/null || {
-            echo "  -> ERROR: Could not clone turboacc!"
-        }
-    }
-    if [ -d "/tmp/turboacc/luci-app-turboacc" ]; then
-        cp -r /tmp/turboacc/luci-app-turboacc package/luci-app-turboacc
-        echo "  -> luci-app-turboacc added"
-    else
-        echo "  -> WARNING: luci-app-turboacc directory not found in repo!"
-    fi
-    rm -rf /tmp/turboacc
-else
-    echo "  -> luci-app-turboacc already exists"
-fi
-
-# 6. Verify everything is in place
-echo "[6/6] Final verification..."
+# 3. Verify everything is in place
+echo "[3/3] Final verification..."
 echo ""
 
 echo "  -> ZN-M2 device definition (should be built-in):"
@@ -173,10 +105,10 @@ grep "KERNEL_PATCHVER" "$TARGET_MAKEFILE" 2>/dev/null || true
 echo ""
 
 echo "  -> Key packages:"
-for pkg in luci-app-passwall rtp2httpd luci-app-rtp2httpd gecoosac luci-app-gecoosac fullconenat-nft luci-app-turboacc; do
+for pkg in dae luci-app-dae tailscale; do
     found=$(find package/ feeds/ -path "*/$pkg/Makefile" 2>/dev/null | head -1)
     if [ -n "$found" ]; then
-        echo "    [OK] $pkg"
+        echo "    [OK] $pkg ($found)"
     else
         echo "    [WARN] $pkg NOT found!"
     fi
@@ -187,14 +119,14 @@ echo "============================================"
 echo " Build Summary"
 echo "============================================"
 echo " Source:  VIKINGYFY/ImmortalWrt main (NSS Full Support)"
-echo " Kernel:  6.18"
+echo " Kernel:  6.18 + eBPF/BTF (required by dae)"
 echo " Target:  qualcommax/ipq60xx/zn_m2"
 echo " WiFi:    DISABLED"
 echo " NSS:     nss-drv + ecm + nss-dp + ssdk + firmware (from DEFAULT_PACKAGES)"
 echo " Ports:   lan1 / lan2 / lan3 / wan (independent netdevs, labels in DTS)"
-echo " IPTV:    Dual-line PPPoE + policy routing"
-echo " Features: PASSWALL (Xray+sing-box) + rtp2httpd + 集客AC + Argon主题 + NSS + 全锥型NAT"
-echo " TurboACC: luci-app-turboacc (detects the running QCA-NSS-ECM)"
+echo " Features: dae (transparent proxy) + luci-app-dae (zh_Hans UI)"
+echo "           + tailscale (mesh networking)"
+echo " Overlay: none (OpenWrt defaults: LAN 192.168.1.1, DHCP WAN)"
 echo "============================================"
 
 echo ""
