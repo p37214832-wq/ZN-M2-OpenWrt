@@ -14,38 +14,18 @@ echo "============================================"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# 1. Remove WiFi from DEFAULT_PACKAGES (user doesn't need WiFi)
-# IMPORTANT: DEFAULT_PACKAGES is a multi-line block. The first line is only
-# "DEFAULT_PACKAGES += \" and the actual package names live on the tab-indented
-# continuation lines. Sed must target those continuation lines, otherwise
-# nothing gets removed at all.
-echo "[1/3] Removing WiFi from DEFAULT_PACKAGES..."
+# 1. WiFi: KEEP (user wants WiFi AP on ZN-M2)
+# Upstream DEFAULT_PACKAGES already ships the full WiFi stack for
+# qualcommax/ipq60xx: wpad-openssl + kmod-ath11k/ahb/pci and
+# ath11k-firmware-ipq6018-ddwrt. Nothing to strip - just verify.
+echo "[1/3] Verifying WiFi packages in DEFAULT_PACKAGES..."
 TARGET_MAKEFILE="target/linux/qualcommax/Makefile"
 IPQ60XX_MK="target/linux/qualcommax/ipq60xx/target.mk"
 
-if [ -f "$TARGET_MAKEFILE" ]; then
-    # Longest names first, so "kmod-ath11k" never partially matches
-    # "kmod-ath11k-ahb" and leaves a dangling "-ahb" token behind.
-    for pkg in kmod-ath11k-ahb kmod-ath11k-pci kmod-ath11k wpad-openssl; do
-        sed -i "/^\t/s/ *${pkg}\b//g" "$TARGET_MAKEFILE"
-    done
-    # Collapse the double spaces left behind by the removals
-    sed -i '/^\t/s/  \+/ /g' "$TARGET_MAKEFILE"
-    echo "  -> WiFi packages removed from $TARGET_MAKEFILE"
-else
-    echo "  -> WARNING: $TARGET_MAKEFILE not found!"
-fi
-
-if [ -f "$IPQ60XX_MK" ]; then
-    sed -i "/^DEFAULT_PACKAGES/s/ *ath11k-firmware-ipq6018-ddwrt\b//g" "$IPQ60XX_MK"
-    echo "  -> WiFi firmware removed from $IPQ60XX_MK"
-else
-    echo "  -> WARNING: $IPQ60XX_MK not found!"
-fi
-
-echo "  -> Default packages after cleanup:"
-sed -n '/^DEFAULT_PACKAGES/,/^\$(eval/p' "$TARGET_MAKEFILE" 2>/dev/null | head -8
-grep "^DEFAULT_PACKAGES" "$IPQ60XX_MK" 2>/dev/null || true
+echo "  -> WiFi packages kept in $TARGET_MAKEFILE:"
+grep -o "wpad-openssl\|kmod-ath11k-ahb\|kmod-ath11k-pci\|kmod-ath11k" "$TARGET_MAKEFILE" 2>/dev/null | sort -u || echo "  -> WARNING: WiFi packages not found!"
+echo "  -> WiFi firmware kept in $IPQ60XX_MK:"
+grep -o "ath11k-firmware-ipq6018-ddwrt" "$IPQ60XX_MK" 2>/dev/null || echo "  -> WARNING: WiFi firmware not found!"
 
 # 2. Add dae + luci-app-dae as packages
 # Cloned from ysuolmai/luci-app-dae (maintained fork used in production
@@ -121,7 +101,7 @@ echo "============================================"
 echo " Source:  VIKINGYFY/ImmortalWrt main (NSS Full Support)"
 echo " Kernel:  6.18 + eBPF/BTF (required by dae)"
 echo " Target:  qualcommax/ipq60xx/zn_m2"
-echo " WiFi:    DISABLED"
+echo " WiFi:    ENABLED (ath11k-ahb + wpad-openssl)"
 echo " NSS:     nss-drv + ecm + nss-dp + ssdk + firmware (from DEFAULT_PACKAGES)"
 echo " Ports:   lan1 / lan2 / lan3 / wan (independent netdevs, labels in DTS)"
 echo " Features: dae (transparent proxy) + luci-app-dae (zh_Hans UI)"
