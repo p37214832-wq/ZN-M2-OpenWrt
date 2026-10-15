@@ -27,31 +27,47 @@ grep -o "wpad-openssl\|kmod-ath11k-ahb\|kmod-ath11k-pci\|kmod-ath11k" "$TARGET_M
 echo "  -> WiFi firmware kept in $IPQ60XX_MK:"
 grep -o "ath11k-firmware-ipq6018-ddwrt" "$IPQ60XX_MK" 2>/dev/null || echo "  -> WARNING: WiFi firmware not found!"
 
-# 2. Add dae + luci-app-dae as packages
-# Cloned from ysuolmai/luci-app-dae (maintained fork used in production
-# DAE firmware builds). The repo ships the dae core (tracking
-# daeuniverse/dae main) and the luci-app-dae LuCI interface with zh_Hans.
+# 2. Add dae + luci-app-dae as packages (FORCE ysuolmai edition)
+# Cloned from ysuolmai/luci-app-dae (maintained fork with the subscription
+# form UI: Form / All Nodes / Text tabs). Any existing copies from feeds
+# or a previous run are REMOVED first, so the ysuolmai fork is definitely
+# what gets built. (The old logic skipped the clone when the dirs already
+# existed, which is how the old UI got baked into the previous firmware.)
 # Must land in package/ BEFORE `make defconfig` so CONFIG_PACKAGE_dae=y
 # and CONFIG_PACKAGE_luci-app-dae=y resolve.
-echo "[2/3] Adding dae + luci-app-dae packages..."
-if [ ! -d "package/dae" ] || [ ! -d "package/luci-app-dae" ]; then
-    git clone --depth 1 https://github.com/ysuolmai/luci-app-dae.git /tmp/luci-app-dae
-    if [ -d "/tmp/luci-app-dae/dae" ] && [ -d "/tmp/luci-app-dae/luci-app-dae" ]; then
-        rm -rf package/dae package/luci-app-dae
-        cp -r /tmp/luci-app-dae/dae package/dae
-        cp -r /tmp/luci-app-dae/luci-app-dae package/luci-app-dae
-        echo "  -> dae + luci-app-dae packages added"
-    else
-        echo "  -> ERROR: dae / luci-app-dae directories not found in cloned repo!"
-        exit 1
-    fi
-    rm -rf /tmp/luci-app-dae
+echo "[2/4] Force-installing dae + luci-app-dae (ysuolmai edition)..."
+rm -rf package/dae package/luci-app-dae
+find feeds package/feeds -maxdepth 4 \( -name "dae" -o -name "luci-app-dae" \) 2>/dev/null | while read -r d; do
+    echo "  -> removing existing copy: $d"
+    rm -rf "$d"
+done
+git clone --depth 1 https://github.com/ysuolmai/luci-app-dae.git /tmp/dae-src
+if [ -d "/tmp/dae-src/dae" ] && [ -d "/tmp/dae-src/luci-app-dae" ]; then
+    cp -r /tmp/dae-src/dae package/dae
+    cp -r /tmp/dae-src/luci-app-dae package/luci-app-dae
+    echo "  -> dae + luci-app-dae (ysuolmai) installed to package/"
 else
-    echo "  -> dae packages already exist"
+    echo "  -> ERROR: dae / luci-app-dae directories not found in cloned repo!"
+    exit 1
 fi
+rm -rf /tmp/dae-src
 
-# 3. Verify everything is in place
-echo "[3/3] Final verification..."
+# 3. Add luci-app-tailscale (asvow edition)
+# Standard Lua LuCI app (luci.mk), compatible with this tree's LuCI.
+# The stock feeds do not provide luci-app-tailscale, which is why
+# CONFIG_PACKAGE_luci-app-tailscale=y was silently dropped by defconfig
+# in the previous build.
+echo "[3/4] Adding luci-app-tailscale (asvow)..."
+rm -rf package/luci-app-tailscale
+find feeds package/feeds -maxdepth 4 -name "luci-app-tailscale" 2>/dev/null | while read -r d; do
+    echo "  -> removing existing copy: $d"
+    rm -rf "$d"
+done
+git clone --depth 1 https://github.com/asvow/luci-app-tailscale.git package/luci-app-tailscale
+echo "  -> luci-app-tailscale (asvow) installed to package/"
+
+# 4. Verify everything is in place
+echo "[4/4] Final verification..."
 echo ""
 
 echo "  -> ZN-M2 device definition (should be built-in):"
@@ -85,7 +101,7 @@ grep "KERNEL_PATCHVER" "$TARGET_MAKEFILE" 2>/dev/null || true
 echo ""
 
 echo "  -> Key packages:"
-for pkg in dae luci-app-dae tailscale; do
+for pkg in dae luci-app-dae tailscale luci-app-tailscale ttyd luci-app-ttyd; do
     found=$(find package/ feeds/ -path "*/$pkg/Makefile" 2>/dev/null | head -1)
     if [ -n "$found" ]; then
         echo "    [OK] $pkg ($found)"
@@ -104,8 +120,9 @@ echo " Target:  qualcommax/ipq60xx/zn_m2"
 echo " WiFi:    ENABLED (ath11k-ahb + wpad-openssl)"
 echo " NSS:     nss-drv + ecm + nss-dp + ssdk + firmware (from DEFAULT_PACKAGES)"
 echo " Ports:   lan1 / lan2 / lan3 / wan (independent netdevs, labels in DTS)"
-echo " Features: dae (transparent proxy) + luci-app-dae (zh_Hans UI)"
-echo "           + tailscale (mesh networking)"
+echo " Features: dae (transparent proxy) + luci-app-dae (ysuolmai, subscription UI)"
+echo "           + tailscale + luci-app-tailscale (asvow, web UI)"
+echo "           + ttyd + luci-app-ttyd (web terminal)"
 echo " Overlay: none (OpenWrt defaults: LAN 192.168.1.1, DHCP WAN)"
 echo "============================================"
 
