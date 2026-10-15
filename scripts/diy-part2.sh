@@ -64,6 +64,12 @@ find feeds package/feeds -maxdepth 4 -name "luci-app-tailscale" 2>/dev/null | wh
     rm -rf "$d"
 done
 git clone --depth 1 https://github.com/asvow/luci-app-tailscale.git package/luci-app-tailscale
+# Fix file conflicts: the tailscale main package already ships
+# /etc/config/tailscale and /etc/init.d/tailscale. The copies bundled in
+# this luci-app would abort the build with "trying to overwrite" errors,
+# so drop them and keep only the LuCI web UI files.
+rm -f package/luci-app-tailscale/root/etc/config/tailscale
+rm -f package/luci-app-tailscale/root/etc/init.d/tailscale
 echo "  -> luci-app-tailscale (asvow) installed to package/"
 
 # 4. Verify everything is in place
