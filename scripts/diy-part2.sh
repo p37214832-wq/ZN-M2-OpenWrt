@@ -116,6 +116,40 @@ for pkg in dae luci-app-dae tailscale luci-app-tailscale ttyd luci-app-ttyd; do
     fi
 done
 
+# --- v3: files overlay (CN mirrors, LAN 192.168.2.1, open WiFi) ---
+# These go into files/ and do NOT affect `make defconfig`.
+echo ""
+echo "[7/7] Setting up files overlay (CN mirrors, LAN IP, open WiFi)..."
+mkdir -p files/etc/opkg files/etc/uci-defaults
+
+# Chinese opkg mirrors (Tsinghua)
+cat > files/etc/opkg/distfeeds.conf << 'FEEDSEOF'
+src/gz openwrt_core https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10-SNAPSHOT/targets/qualcommax/ipq60xx/packages
+src/gz openwrt_base https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10-SNAPSHOT/packages/aarch64_cortex-a53/base
+src/gz openwrt_luci https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10-SNAPSHOT/packages/aarch64_cortex-a53/luci
+src/gz openwrt_packages https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10-SNAPSHOT/packages/aarch64_cortex-a53/packages
+src/gz openwrt_routing https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10-SNAPSHOT/packages/aarch64_cortex-a53/routing
+src/gz openwrt_telephony https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10-SNAPSHOT/packages/aarch64_cortex-a53/telephony
+FEEDSEOF
+echo "  -> files/etc/opkg/distfeeds.conf (Tsinghua mirrors)"
+
+# First-boot: LAN 192.168.2.1, WiFi open (no password)
+cat > files/etc/uci-defaults/99-zn-m2-v3 << 'UCIEOF'
+#!/bin/sh
+# ZN-M2 v3 first-boot: LAN 192.168.2.1, open WiFi
+uci set network.lan.ipaddr='192.168.2.1'
+uci commit network
+# Open WiFi (remove password)
+uci set wireless.@wifi-iface[0].encryption='none'
+uci delete wireless.@wifi-iface[0].key 2>/dev/null
+uci set wireless.@wifi-iface[1].encryption='none' 2>/dev/null
+uci delete wireless.@wifi-iface[1].key 2>/dev/null
+uci commit wireless
+exit 0
+UCIEOF
+chmod +x files/etc/uci-defaults/99-zn-m2-v3
+echo "  -> files/etc/uci-defaults/99-zn-m2-v3 (LAN 192.168.2.1, open WiFi)"
+
 echo ""
 echo "============================================"
 echo " Build Summary"
@@ -129,7 +163,7 @@ echo " Ports:   lan1 / lan2 / lan3 / wan (independent netdevs, labels in DTS)"
 echo " Features: dae (transparent proxy) + luci-app-dae (ysuolmai, subscription UI)"
 echo "           + tailscale + luci-app-tailscale (asvow, web UI)"
 echo "           + ttyd + luci-app-ttyd (web terminal)"
-echo " Overlay: none (OpenWrt defaults: LAN 192.168.1.1, DHCP WAN)"
+echo " Overlay: CN opkg mirrors, LAN 192.168.2.1, open WiFi (via files/)"
 echo "============================================"
 
 echo ""
