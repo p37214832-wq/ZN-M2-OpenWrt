@@ -2,7 +2,7 @@
 # ============================================================
 # DIY Part 2 - Executed AFTER feeds install, BEFORE make
 # For VIKINGYFY/ImmortalWrt main branch (ZN-M2 already supported)
-# MINIMAL DAE EDITION: dae + luci-app-dae + tailscale only
+# MINIMAL DAE EDITION: dae + daed + ttyd only (no tailscale)
 # ============================================================
 
 set -e
@@ -33,47 +33,27 @@ grep -o "ath11k-firmware-ipq6018-ddwrt" "$IPQ60XX_MK" 2>/dev/null || echo "  -> 
 # or a previous run are REMOVED first, so the ysuolmai fork is definitely
 # what gets built. (The old logic skipped the clone when the dirs already
 # existed, which is how the old UI got baked into the previous firmware.)
-# Must land in package/ BEFORE `make defconfig` so CONFIG_PACKAGE_dae=y
-# and CONFIG_PACKAGE_luci-app-dae=y resolve.
-echo "[2/4] Force-installing dae + luci-app-dae (ysuolmai edition)..."
+# Must land in package/ BEFORE `make defconfig` so CONFIG_PACKAGE_dae=y resolves.
+# daed + luci-app-daed come from the feeds (no cloning needed).
+echo "[2/3] Force-installing dae core (ysuolmai edition)..."
 rm -rf package/dae package/luci-app-dae
 find feeds package/feeds -maxdepth 4 \( -name "dae" -o -name "luci-app-dae" \) 2>/dev/null | while read -r d; do
     echo "  -> removing existing copy: $d"
     rm -rf "$d"
 done
 git clone --depth 1 https://github.com/ysuolmai/luci-app-dae.git /tmp/dae-src
-if [ -d "/tmp/dae-src/dae" ] && [ -d "/tmp/dae-src/luci-app-dae" ]; then
+if [ -d "/tmp/dae-src/dae" ]; then
     cp -r /tmp/dae-src/dae package/dae
-    cp -r /tmp/dae-src/luci-app-dae package/luci-app-dae
-    echo "  -> dae + luci-app-dae (ysuolmai) installed to package/"
+    echo "  -> dae core (ysuolmai) installed to package/"
 else
-    echo "  -> ERROR: dae / luci-app-dae directories not found in cloned repo!"
+    echo "  -> ERROR: dae directory not found in cloned repo!"
     exit 1
 fi
 rm -rf /tmp/dae-src
 
-# 3. Add luci-app-tailscale (asvow edition)
-# Standard Lua LuCI app (luci.mk), compatible with this tree's LuCI.
-# The stock feeds do not provide luci-app-tailscale, which is why
-# CONFIG_PACKAGE_luci-app-tailscale=y was silently dropped by defconfig
-# in the previous build.
-echo "[3/4] Adding luci-app-tailscale (asvow)..."
-rm -rf package/luci-app-tailscale
-find feeds package/feeds -maxdepth 4 -name "luci-app-tailscale" 2>/dev/null | while read -r d; do
-    echo "  -> removing existing copy: $d"
-    rm -rf "$d"
-done
-git clone --depth 1 https://github.com/asvow/luci-app-tailscale.git package/luci-app-tailscale
-# Fix file conflicts: the tailscale main package already ships
-# /etc/config/tailscale and /etc/init.d/tailscale. The copies bundled in
-# this luci-app would abort the build with "trying to overwrite" errors,
-# so drop them and keep only the LuCI web UI files.
-rm -f package/luci-app-tailscale/root/etc/config/tailscale
-rm -f package/luci-app-tailscale/root/etc/init.d/tailscale
-echo "  -> luci-app-tailscale (asvow) installed to package/"
 
 # 4. Verify everything is in place
-echo "[4/4] Final verification..."
+echo "[3/3] Final verification..."
 echo ""
 
 echo "  -> ZN-M2 device definition (should be built-in):"
@@ -107,7 +87,7 @@ grep "KERNEL_PATCHVER" "$TARGET_MAKEFILE" 2>/dev/null || true
 echo ""
 
 echo "  -> Key packages:"
-for pkg in dae luci-app-dae tailscale luci-app-tailscale ttyd luci-app-ttyd; do
+for pkg in dae daed luci-app-daed ttyd luci-app-ttyd; do
     found=$(find package/ feeds/ -path "*/$pkg/Makefile" 2>/dev/null | head -1)
     if [ -n "$found" ]; then
         echo "    [OK] $pkg ($found)"
@@ -160,8 +140,7 @@ echo " Target:  qualcommax/ipq60xx/zn_m2"
 echo " WiFi:    ENABLED (ath11k-ahb + wpad-openssl)"
 echo " NSS:     nss-drv + ecm + nss-dp + ssdk + firmware (from DEFAULT_PACKAGES)"
 echo " Ports:   lan1 / lan2 / lan3 / wan (independent netdevs, labels in DTS)"
-echo " Features: dae (transparent proxy) + luci-app-dae (ysuolmai, subscription UI)"
-echo "           + tailscale + luci-app-tailscale (asvow, web UI)"
+echo " Features: dae + daed (official web UI) + ttyd (no tailscale)"
 echo "           + ttyd + luci-app-ttyd (web terminal)"
 echo " Overlay: CN opkg mirrors, LAN 192.168.2.1, open WiFi (via files/)"
 echo "============================================"

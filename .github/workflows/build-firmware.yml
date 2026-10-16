@@ -38,8 +38,7 @@ jobs:
           echo " Source: VIKINGYFY/ImmortalWrt ${{ env.REPO_TAG }} (NSS Full Support)"
           echo " Kernel: 6.18 + eBPF/BTF (required by dae)"
           echo " WiFi:   DISABLED (no WiFi needed)"
-          echo " Features: dae + luci-app-dae (transparent proxy)"
-          echo "           tailscale (mesh networking)"
+          echo " Features: dae + daed (official web UI, no tailscale)"
           echo " Date:   $(date '+%Y-%m-%d %H:%M:%S %Z')"
           echo "============================================"
 
@@ -138,24 +137,24 @@ jobs:
       - name: Apply custom config
         run: |
           cd openwrt
-          # Minimal dae build: do NOT copy the upstream files/ overlay.
-          # It contains the original author's PPPoE credentials and a
-          # Guangdong-Telecom IPTV dual-line setup that must not ship here.
-          # OpenWrt defaults are used instead (LAN 192.168.1.1, DHCP WAN).
+          # files/ overlay is populated by diy-part2.sh (CN mirrors,
+          # LAN 192.168.2.1, open WiFi via uci-defaults).
+          # NOTE: do NOT copy the upstream repo's files/ (contains the
+          # original author's PPPoE credentials) - we only use our own.
           mkdir -p files
-          echo "=== Overlay files ==="
-          echo "Skipped (minimal dae build uses OpenWrt defaults)"
+          echo "=== Overlay files (from diy-part2.sh) ==="
+          find files -type f 2>/dev/null || echo "(empty)"
           cp ../configs/$CONFIG_FILE .config
           make defconfig
 
           echo "=== Key config items ==="
-          grep -E "TARGET_qualcommax|TARGET.*DEVICE.*zn_m2|LINUX|dae|tailscale|DEBUG_INFO_BTF|BPF" .config || true
+          grep -E "TARGET_qualcommax|TARGET.*DEVICE.*zn_m2|LINUX|dae|daed|DEBUG_INFO_BTF|BPF" .config || true
 
           echo "=== dae packages ==="
-          if grep -q "^CONFIG_PACKAGE_dae=y" .config && grep -q "^CONFIG_PACKAGE_luci-app-dae=y" .config; then
-            echo "  [OK] dae + luci-app-dae selected"
+          if grep -q "^CONFIG_PACKAGE_dae=y" .config && grep -q "^CONFIG_PACKAGE_daed=y" .config; then
+            echo "  [OK] dae + daed selected"
           else
-            echo "  ::error::dae packages NOT selected - check diy-part2.sh cloned them into package/!"
+            echo "  ::error::dae/daed packages NOT selected - check config and feeds!"
             exit 1
           fi
 
@@ -169,8 +168,6 @@ jobs:
             fi
           done
 
-          echo "=== tailscale ==="
-          grep -E "tailscale" .config || echo "  WARNING: tailscale not selected!"
 
           echo "=== Chinese (Simplified) language support ==="
           if grep -q "^CONFIG_LUCI_LANG_zh_Hans=y" .config; then
@@ -289,16 +286,16 @@ jobs:
             **WiFi:** Disabled (not needed)
 
             ### Included Features
-            - **dae** - transparent proxy (eBPF-based, replaces passwall/openclash)
-            - **luci-app-dae** - LuCI management UI (Chinese)
-            - **tailscale** - mesh networking
+            - **dae** - transparent proxy (eBPF-based)
+            - **daed** - official dae web UI (replaces luci-app-dae)
+            - **ttyd** - web terminal
             - **NSS hardware acceleration** (nss-drv + ecm + nss-dp + ssdk + firmware)
             - **All 4 ports shown as separate devices** (lan1/lan2/lan3/wan)
             - Nothing else - minimal build for 128MB NAND
 
             ### Notes
-            - No overlay files: LAN is 192.168.1.1, WAN uses DHCP by default.
-              Set your own PPPoE account in LuCI if needed.
+            - Presets: LAN 192.168.2.1, WiFi open (no password), CN opkg mirrors.
+              WAN uses DHCP by default; set PPPoE in LuCI if needed.
             - When dae's transparent proxy is active, disable hardware flow
               offloading to avoid conflicts:
               `/etc/init.d/qca-nss-ecm stop && /etc/init.d/qca-nss-ecm disable`
