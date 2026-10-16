@@ -165,6 +165,14 @@ UCIEOF
 chmod +x files/etc/uci-defaults/99-zn-m2-v3
 echo "  -> files/etc/uci-defaults/99-zn-m2-v3 (LAN 192.168.2.1, open WiFi)"
 
+# Scheduled memory release: drop caches every 6 hours (router has 512MB RAM,
+# user reported 94% usage). Uses cron, no extra package needed.
+mkdir -p files/etc/crontabs
+cat > files/etc/crontabs/root << 'CRONEOF'
+0 */6 * * * echo 3 > /proc/sys/vm/drop_caches
+CRONEOF
+echo "  -> files/etc/crontabs/root (memory release every 6h)"
+
 echo ""
 echo "============================================"
 echo " Build Summary"
