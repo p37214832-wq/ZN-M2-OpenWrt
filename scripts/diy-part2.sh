@@ -56,7 +56,27 @@ else
     echo "  -> WARNING: GIT_BRANCH line not found in package/dae/Makefile, dae NOT pinned!"
 fi
 
-# 2c. tailscale vs luci-app-tailscale file conflict: both ship
+# 2c. Slim the dae package: install ONLY the main `dae` binary.
+# GoPackage/Package/Install/Bin would also ship build-time helper tools
+# (semantic-refactor-quic-helper, dae-ebpf-audit, gen_ebpf_sync, ~13.7MB).
+# Tolerant: warn and continue if the install line is not found.
+python3 - <<'PYEOF'
+import sys
+p = 'package/dae/Makefile'
+s = open(p).read()
+old = "\t$(call GoPackage/Package/Install/Bin,$(1))\n"
+add = ("\t# keep only the main dae binary; drop build-time helper tools (~13.7MB)\n"
+       "\tfor f in $(1)/usr/bin/*; do \\\n"
+       "\t\t[ \"$$f\" = \"$(1)/usr/bin/dae\" ] || rm -f \"$$f\"; \\\n"
+       "\tdone\n")
+if old not in s:
+    print("  -> WARNING: GoPackage install line not found, dae NOT slimmed!")
+else:
+    open(p, 'w').write(s.replace(old, old + add, 1))
+    print("  -> dae install slimmed to main binary only")
+PYEOF
+
+# 2d. tailscale vs luci-app-tailscale file conflict: both ship
 # etc/config/tailscale and etc/init.d/tailscale, which fails image assembly.
 # Strip the duplicates from the luci app (tolerant if paths differ or gone).
 if [ -d "feeds/luci/applications/luci-app-tailscale" ]; then
