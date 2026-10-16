@@ -147,14 +147,14 @@ src/gz openwrt_telephony https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releas
 FEEDSEOF
 echo "  -> files/etc/opkg/distfeeds.conf (Tsinghua mirrors)"
 
-# First-boot: LAN 192.168.2.1, WiFi open (no password)
-# NOTE 2026-10-16: 192.168.2.1 preset restored - IPv4 LAN failure was
-# caused by NSS ECM, not the IP preset (verified with no-ECM test build).
+# First-boot: WiFi open (no password)
+# NOTE 2026-10-17: 192.168.2.1 preset REMOVED - user found that changing LAN IP
+# (even manually via LuCI) triggers an error requiring "force apply" on this
+# firmware. Presetting it in first-boot breaks networking. Leave default
+# 192.168.1.1; user changes to 192.168.2.1 manually via LuCI with force apply.
 cat > files/etc/uci-defaults/99-zn-m2-v3 << 'UCIEOF'
 #!/bin/sh
-# ZN-M2 first-boot: LAN 192.168.2.1, open WiFi
-uci set network.lan.ipaddr='192.168.2.1'
-uci commit network
+# ZN-M2 first-boot: open WiFi (LAN stays 192.168.1.1 default)
 # Open WiFi (remove password)
 uci set wireless.@wifi-iface[0].encryption='none'
 uci delete wireless.@wifi-iface[0].key 2>/dev/null
@@ -163,7 +163,7 @@ uci delete wireless.@wifi-iface[1].key 2>/dev/null
 uci commit wireless
 UCIEOF
 chmod +x files/etc/uci-defaults/99-zn-m2-v3
-echo "  -> files/etc/uci-defaults/99-zn-m2-v3 (LAN 192.168.2.1, open WiFi)"
+echo "  -> files/etc/uci-defaults/99-zn-m2-v3 (open WiFi, LAN default 192.168.1.1)"
 
 # Scheduled memory release: drop caches every 6 hours (router has 512MB RAM,
 # user reported 94% usage). Uses cron, no extra package needed.
