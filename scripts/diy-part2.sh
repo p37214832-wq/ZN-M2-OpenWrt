@@ -27,14 +27,9 @@ grep -o "wpad-openssl\|kmod-ath11k-ahb\|kmod-ath11k-pci\|kmod-ath11k" "$TARGET_M
 echo "  -> WiFi firmware kept in $IPQ60XX_MK:"
 grep -o "ath11k-firmware-ipq6018-ddwrt" "$IPQ60XX_MK" 2>/dev/null || echo "  -> WARNING: WiFi firmware not found!"
 
-# 2. Add dae + luci-app-dae as packages (FORCE ysuolmai edition)
-# Cloned from ysuolmai/luci-app-dae (maintained fork with the subscription
-# form UI: Form / All Nodes / Text tabs). Any existing copies from feeds
-# or a previous run are REMOVED first, so the ysuolmai fork is definitely
-# what gets built. (The old logic skipped the clone when the dirs already
-# existed, which is how the old UI got baked into the previous firmware.)
+# 2. Add dae core as package (FORCE ysuolmai edition, dae subdir only).
+# Web UI is daed + luci-app-daed from feeds (no cloning needed).
 # Must land in package/ BEFORE `make defconfig` so CONFIG_PACKAGE_dae=y resolves.
-# daed + luci-app-daed come from the feeds (no cloning needed).
 echo "[2/3] Force-installing dae core (ysuolmai edition)..."
 rm -rf package/dae package/luci-app-dae
 find feeds package/feeds -maxdepth 4 \( -name "dae" -o -name "luci-app-dae" \) 2>/dev/null | while read -r d; do
@@ -116,7 +111,7 @@ echo "  -> files/etc/opkg/distfeeds.conf (Tsinghua mirrors)"
 # First-boot: LAN 192.168.2.1, WiFi open (no password)
 cat > files/etc/uci-defaults/99-zn-m2-v3 << 'UCIEOF'
 #!/bin/sh
-# ZN-M2 v3 first-boot: LAN 192.168.2.1, open WiFi
+# ZN-M2 first-boot: LAN 192.168.2.1, open WiFi
 uci set network.lan.ipaddr='192.168.2.1'
 uci commit network
 # Open WiFi (remove password)
