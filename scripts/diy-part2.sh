@@ -147,12 +147,12 @@ src/gz openwrt_telephony https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releas
 FEEDSEOF
 echo "  -> files/etc/opkg/distfeeds.conf (Tsinghua mirrors)"
 
-# First-boot: LAN 192.168.2.1, WiFi open (no password)
+# First-boot: WiFi open (no password), LAN stays at default 192.168.1.1
+# NOTE 2026-10-16: 192.168.2.1 preset removed for testing - IPv4 LAN was dead
+# on builds with the 192.168.2.1 override (DHCP/ping/SSH all failed).
 cat > files/etc/uci-defaults/99-zn-m2-v3 << 'UCIEOF'
 #!/bin/sh
-# ZN-M2 first-boot: LAN 192.168.2.1, open WiFi
-uci set network.lan.ipaddr='192.168.2.1'
-uci commit network
+# ZN-M2 first-boot: open WiFi (LAN stays at default 192.168.1.1)
 # Open WiFi (remove password)
 uci set wireless.@wifi-iface[0].encryption='none'
 uci delete wireless.@wifi-iface[0].key 2>/dev/null
@@ -162,7 +162,7 @@ uci commit wireless
 exit 0
 UCIEOF
 chmod +x files/etc/uci-defaults/99-zn-m2-v3
-echo "  -> files/etc/uci-defaults/99-zn-m2-v3 (LAN 192.168.2.1, open WiFi)"
+echo "  -> files/etc/uci-defaults/99-zn-m2-v3 (LAN default 192.168.1.1, open WiFi)"
 
 echo ""
 echo "============================================"
