@@ -2,7 +2,7 @@
 # ============================================================
 # DIY Part 2 - Executed AFTER feeds install, BEFORE make
 # For VIKINGYFY/ImmortalWrt main branch (ZN-M2 already supported)
-# MINIMAL DAE EDITION: dae + daed + ttyd only (no tailscale)
+# MINIMAL DAE EDITION: dae (pinned v2.1.1) + daed + ttyd + tailscale
 # ============================================================
 
 set -e
@@ -46,6 +46,25 @@ else
 fi
 rm -rf /tmp/dae-src
 
+# 2b. Pin dae core to upstream v2.1.1 (kdae rework) instead of floating main.
+# The Makefile clones daeuniverse/dae@$GIT_BRANCH; a tag name works with `git clone -b`.
+# Tolerant: if the Makefile layout ever changes, warn and keep floating main.
+if grep -q '^GIT_BRANCH:=main$' package/dae/Makefile 2>/dev/null; then
+    sed -i 's/^GIT_BRANCH:=main$/GIT_BRANCH:=v2.1.1/' package/dae/Makefile
+    echo "  -> dae pinned to upstream v2.1.1 (kdae)"
+else
+    echo "  -> WARNING: GIT_BRANCH line not found in package/dae/Makefile, dae NOT pinned!"
+fi
+
+# 2c. tailscale vs luci-app-tailscale file conflict: both ship
+# etc/config/tailscale and etc/init.d/tailscale, which fails image assembly.
+# Strip the duplicates from the luci app (tolerant if paths differ or gone).
+if [ -d "feeds/luci/applications/luci-app-tailscale" ]; then
+    find feeds/luci/applications/luci-app-tailscale -path "*etc/config/tailscale" -delete 2>/dev/null || true
+    find feeds/luci/applications/luci-app-tailscale -path "*etc/init.d/tailscale" -delete 2>/dev/null || true
+    echo "  -> stripped tailscale file conflicts from luci-app-tailscale"
+fi
+
 
 # 4. Verify everything is in place
 echo "[3/3] Final verification..."
@@ -82,7 +101,7 @@ grep "KERNEL_PATCHVER" "$TARGET_MAKEFILE" 2>/dev/null || true
 echo ""
 
 echo "  -> Key packages:"
-for pkg in dae daed luci-app-daed ttyd luci-app-ttyd; do
+for pkg in dae daed luci-app-daed ttyd luci-app-ttyd tailscale luci-app-tailscale; do
     found=$(find package/ feeds/ -path "*/$pkg/Makefile" 2>/dev/null | head -1)
     if [ -n "$found" ]; then
         echo "    [OK] $pkg ($found)"
@@ -135,8 +154,8 @@ echo " Target:  qualcommax/ipq60xx/zn_m2"
 echo " WiFi:    ENABLED (ath11k-ahb + wpad-openssl)"
 echo " NSS:     nss-drv + ecm + nss-dp + ssdk + firmware (from DEFAULT_PACKAGES)"
 echo " Ports:   lan1 / lan2 / lan3 / wan (independent netdevs, labels in DTS)"
-echo " Features: dae + daed (official web UI) + ttyd (no tailscale)"
-echo "           + ttyd + luci-app-ttyd (web terminal)"
+echo " Features: dae v2.1.1 (pinned, kdae) + daed (official web UI) + ttyd + tailscale"
+echo "           + luci-app-ttyd (web terminal) + luci-app-tailscale"
 echo " Overlay: CN opkg mirrors, LAN 192.168.2.1, open WiFi (via files/)"
 echo "============================================"
 
