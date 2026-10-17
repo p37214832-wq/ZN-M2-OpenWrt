@@ -150,11 +150,11 @@ jobs:
           echo "=== Key config items ==="
           grep -E "TARGET_qualcommax|TARGET.*DEVICE.*zn_m2|LINUX|dae|daed|DEBUG_INFO_BTF|BPF" .config || true
 
-          echo "=== dae packages ==="
-          if grep -q "^CONFIG_PACKAGE_dae=y" .config && grep -q "^CONFIG_PACKAGE_daed=y" .config; then
-            echo "  [OK] dae + daed selected"
+          echo "=== dae packages (v4: dae + luci-app-daede, no daed backend) ==="
+          if grep -q "^CONFIG_PACKAGE_dae=y" .config && grep -q "^CONFIG_PACKAGE_luci-app-daede=y" .config; then
+            echo "  [OK] dae + luci-app-daede selected"
           else
-            echo "  ::error::dae/daed packages NOT selected - check config and feeds!"
+            echo "  ::error::dae/luci-app-daede packages NOT selected - check config and feeds!"
             exit 1
           fi
 
