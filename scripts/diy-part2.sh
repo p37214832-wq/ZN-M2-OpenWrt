@@ -161,9 +161,19 @@ uci delete wireless.@wifi-iface[0].key 2>/dev/null
 uci set wireless.@wifi-iface[1].encryption='none' 2>/dev/null
 uci delete wireless.@wifi-iface[1].key 2>/dev/null
 uci commit wireless
+
+# 2026-10-17 v4: tailscale OFF by default (user enables via LuCI Startup when needed)
+# This gives the user a software "switch" for tailscale
+/etc/init.d/tailscale disable 2>/dev/null || true
+
+# 2026-10-17 v4: lower conntrack max for 512MB RAM (was 65535)
+echo "16384" > /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null || true
+# Make it persistent via sysctl
+mkdir -p /etc/sysctl.d
+echo "net.netfilter.nf_conntrack_max=16384" > /etc/sysctl.d/99-zn-m2.conf
 UCIEOF
 chmod +x files/etc/uci-defaults/99-zn-m2-v3
-echo "  -> files/etc/uci-defaults/99-zn-m2-v3 (open WiFi, LAN default 192.168.1.1)"
+echo "  -> files/etc/uci-defaults/99-zn-m2-v3 (open WiFi, LAN default 192.168.1.1, tailscale OFF, conntrack 16384)"
 
 # Scheduled memory release: drop caches every 6 hours (router has 512MB RAM,
 # user reported 94% usage). Uses cron, no extra package needed.
@@ -184,7 +194,10 @@ echo " WiFi:    ENABLED (ath11k-ahb + wpad-openssl)"
 echo " NSS:     nss-drv + nss-dp + ssdk + firmware (ECM DISABLED for testing)"
 echo " Ports:   lan1 / lan2 / lan3 / wan (independent netdevs, labels in DTS)"
 echo " Features: dae v2.1.1 (pinned, kdae) + daed (official web UI) + ttyd + tailscale"
-echo "           + luci-app-ttyd (web terminal) + luci-app-tailscale"
+echo "           + luci-app-ttyd (web terminal) + luci-app-tailscale (OFF by default)"
+echo "           + zram-swap + htop"
+echo " Slim:     no curl/wget-ssl, no iptables-compat, no nathelpers, no tunnel mods,"
+echo "           no ath11k-pci, no extra fs drivers (v4 redundancy cleanup)"
 echo " Overlay: CN opkg mirrors, LAN 192.168.2.1, open WiFi (via files/)"
 echo "============================================"
 
