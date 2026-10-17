@@ -38,7 +38,10 @@ find feeds package/feeds -maxdepth 4 \( -name "dae" -o -name "daed" -o -name "lu
     rm -rf "$d"
 done
 git clone --depth 1 https://github.com/kenzok8/openwrt-daede.git /tmp/daede-src
-for pkg in dae luci-app-daede; do
+# Copy all three so luci-app-daede's Makefile can reference ../daed/files/daed.config
+# (it hardcodes the sibling path). Only dae + luci-app-daede are selected in
+# .config; daed backend is NOT built (saves memory per v4 plan).
+for pkg in dae daed luci-app-daede; do
     if [ -d "/tmp/daede-src/$pkg" ]; then
         cp -r "/tmp/daede-src/$pkg" "package/$pkg"
         echo "  -> $pkg (kenzok8) installed to package/"
@@ -48,7 +51,7 @@ for pkg in dae luci-app-daede; do
     fi
 done
 rm -rf /tmp/daede-src
-# NOTE: daed (backend) NOT installed - using dae + luci-app-daede for less memory
+# NOTE: daed backend copied for Makefile reference only, NOT selected in .config
 
 # 2b. Slim the dae package: install ONLY the main `dae` binary (if applicable).
 # (kenzok8's dae may already be slim; this is tolerant)
