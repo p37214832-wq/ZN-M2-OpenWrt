@@ -27,36 +27,30 @@ grep -o "wpad-openssl\|kmod-ath11k-ahb\|kmod-ath11k-pci\|kmod-ath11k" "$TARGET_M
 echo "  -> WiFi firmware kept in $IPQ60XX_MK:"
 grep -o "ath11k-firmware-ipq6018-ddwrt" "$IPQ60XX_MK" 2>/dev/null || echo "  -> WARNING: WiFi firmware not found!"
 
-# 2. Add dae core as package (FORCE ysuolmai edition, dae subdir only).
-# Web UI is daed + luci-app-daed from feeds (no cloning needed).
-# Must land in package/ BEFORE `make defconfig` so CONFIG_PACKAGE_dae=y resolves.
-echo "[2/3] Force-installing dae core (ysuolmai edition)..."
-rm -rf package/dae package/luci-app-dae
-find feeds package/feeds -maxdepth 4 \( -name "dae" -o -name "luci-app-dae" \) 2>/dev/null | while read -r d; do
+# 2. Add daede packages (kenzok8 edition, actively maintained).
+# Official daed 1.27.0 was archived 2026-09; kenzok8/openwrt-daede is the
+# maintained fork with dae 2026.09.30 + daed 2026.09.30 + luci-app-daede 1.15.
+# Must land in package/ BEFORE `make defconfig` so CONFIG_PACKAGE_* resolves.
+echo "[2/3] Installing daede (kenzok8 edition)..."
+rm -rf package/dae package/daed package/luci-app-dae package/luci-app-daede
+find feeds package/feeds -maxdepth 4 \( -name "dae" -o -name "daed" -o -name "luci-app-dae" -o -name "luci-app-daede" \) 2>/dev/null | while read -r d; do
     echo "  -> removing existing copy: $d"
     rm -rf "$d"
 done
-git clone --depth 1 https://github.com/ysuolmai/luci-app-dae.git /tmp/dae-src
-if [ -d "/tmp/dae-src/dae" ]; then
-    cp -r /tmp/dae-src/dae package/dae
-    echo "  -> dae core (ysuolmai) installed to package/"
-else
-    echo "  -> ERROR: dae directory not found in cloned repo!"
-    exit 1
-fi
-rm -rf /tmp/dae-src
+git clone --depth 1 https://github.com/kenzok8/openwrt-daede.git /tmp/daede-src
+for pkg in dae daed luci-app-daede; do
+    if [ -d "/tmp/daede-src/$pkg" ]; then
+        cp -r "/tmp/daede-src/$pkg" "package/$pkg"
+        echo "  -> $pkg (kenzok8) installed to package/"
+    else
+        echo "  -> ERROR: $pkg not found in kenzok8/openwrt-daede!"
+        exit 1
+    fi
+done
+rm -rf /tmp/daede-src
 
-# 2b. Pin dae core to upstream v2.1.1 (kdae rework) instead of floating main.
-# The Makefile clones daeuniverse/dae@$GIT_BRANCH; a tag name works with `git clone -b`.
-# Tolerant: if the Makefile layout ever changes, warn and keep floating main.
-if grep -q '^GIT_BRANCH:=main$' package/dae/Makefile 2>/dev/null; then
-    sed -i 's/^GIT_BRANCH:=main$/GIT_BRANCH:=v2.1.1/' package/dae/Makefile
-    echo "  -> dae pinned to upstream v2.1.1 (kdae)"
-else
-    echo "  -> WARNING: GIT_BRANCH line not found in package/dae/Makefile, dae NOT pinned!"
-fi
-
-# 2c. Slim the dae package: install ONLY the main `dae` binary.
+# 2b. Slim the dae package: install ONLY the main `dae` binary (if applicable).
+# (kenzok8's dae may already be slim; this is tolerant)
 # GoPackage/Package/Install/Bin would also ship build-time helper tools
 # (semantic-refactor-quic-helper, dae-ebpf-audit, gen_ebpf_sync, ~13.7MB).
 # Tolerant: warn and continue if the install line is not found.
@@ -121,7 +115,7 @@ grep "KERNEL_PATCHVER" "$TARGET_MAKEFILE" 2>/dev/null || true
 echo ""
 
 echo "  -> Key packages:"
-for pkg in dae daed luci-app-daed ttyd luci-app-ttyd tailscale luci-app-tailscale; do
+for pkg in dae daed luci-app-daede ttyd luci-app-ttyd tailscale luci-app-tailscale; do
     found=$(find package/ feeds/ -path "*/$pkg/Makefile" 2>/dev/null | head -1)
     if [ -n "$found" ]; then
         echo "    [OK] $pkg ($found)"
@@ -175,13 +169,9 @@ UCIEOF
 chmod +x files/etc/uci-defaults/99-zn-m2-v3
 echo "  -> files/etc/uci-defaults/99-zn-m2-v3 (open WiFi, LAN default 192.168.1.1, tailscale OFF, conntrack 16384)"
 
-# Scheduled memory release: drop caches every 6 hours (router has 512MB RAM,
-# user reported 94% usage). Uses cron, no extra package needed.
-mkdir -p files/etc/crontabs
-cat > files/etc/crontabs/root << 'CRONEOF'
-0 */6 * * * echo 3 > /proc/sys/vm/drop_caches
-CRONEOF
-echo "  -> files/etc/crontabs/root (memory release every 6h)"
+# 2026-10-17 v4: cache-clear cron REMOVED per user request
+# (zram-swap handles memory pressure; manual drop_caches if needed)
+echo "  -> (cache-clear cron removed per user request)"
 
 echo ""
 echo "============================================"
@@ -193,11 +183,12 @@ echo " Target:  qualcommax/ipq60xx/zn_m2"
 echo " WiFi:    ENABLED (ath11k-ahb + wpad-openssl)"
 echo " NSS:     nss-drv + nss-dp + ssdk + firmware (ECM DISABLED for testing)"
 echo " Ports:   lan1 / lan2 / lan3 / wan (independent netdevs, labels in DTS)"
-echo " Features: dae v2.1.1 (pinned, kdae) + daed (official web UI) + ttyd + tailscale"
-echo "           + luci-app-ttyd (web terminal) + luci-app-tailscale (OFF by default)"
+echo " Features: daede (kenzok8, dae 2026.09.30 + daed 2026.09.30 + luci-app-daede 1.15)"
+echo "           + ttyd + luci-app-ttyd (web terminal)"
+echo "           + tailscale + luci-app-tailscale (OFF by default)"
 echo "           + zram-swap + htop"
 echo " Slim:     no curl/wget-ssl, no iptables-compat, no nathelpers, no tunnel mods,"
-echo "           no ath11k-pci, no extra fs drivers (v4 redundancy cleanup)"
+echo "           no ath11k-pci, no extra fs drivers, no nss-drv-gre (v4 redundancy cleanup)"
 echo " Overlay: CN opkg mirrors, LAN 192.168.2.1, open WiFi (via files/)"
 echo "============================================"
 
