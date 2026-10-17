@@ -38,7 +38,7 @@ find feeds package/feeds -maxdepth 4 \( -name "dae" -o -name "daed" -o -name "lu
     rm -rf "$d"
 done
 git clone --depth 1 https://github.com/kenzok8/openwrt-daede.git /tmp/daede-src
-for pkg in dae daed luci-app-daede; do
+for pkg in dae luci-app-daede; do
     if [ -d "/tmp/daede-src/$pkg" ]; then
         cp -r "/tmp/daede-src/$pkg" "package/$pkg"
         echo "  -> $pkg (kenzok8) installed to package/"
@@ -48,6 +48,7 @@ for pkg in dae daed luci-app-daede; do
     fi
 done
 rm -rf /tmp/daede-src
+# NOTE: daed (backend) NOT installed - using dae + luci-app-daede for less memory
 
 # 2b. Slim the dae package: install ONLY the main `dae` binary (if applicable).
 # (kenzok8's dae may already be slim; this is tolerant)
@@ -115,7 +116,7 @@ grep "KERNEL_PATCHVER" "$TARGET_MAKEFILE" 2>/dev/null || true
 echo ""
 
 echo "  -> Key packages:"
-for pkg in dae daed luci-app-daede ttyd luci-app-ttyd tailscale luci-app-tailscale; do
+for pkg in dae luci-app-daede ttyd luci-app-ttyd tailscale luci-app-tailscale; do
     found=$(find package/ feeds/ -path "*/$pkg/Makefile" 2>/dev/null | head -1)
     if [ -n "$found" ]; then
         echo "    [OK] $pkg ($found)"
@@ -183,12 +184,12 @@ echo " Target:  qualcommax/ipq60xx/zn_m2"
 echo " WiFi:    ENABLED (ath11k-ahb + wpad-openssl)"
 echo " NSS:     nss-drv + nss-dp + ssdk + firmware (ECM DISABLED for testing)"
 echo " Ports:   lan1 / lan2 / lan3 / wan (independent netdevs, labels in DTS)"
-echo " Features: daede (kenzok8, dae 2026.09.30 + daed 2026.09.30 + luci-app-daede 1.15)"
+echo " Features: daede (kenzok8, dae 2026.09.30 + luci-app-daede 1.15, no daed backend)"
 echo "           + ttyd + luci-app-ttyd (web terminal)"
 echo "           + tailscale + luci-app-tailscale (OFF by default)"
 echo "           + zram-swap + htop"
 echo " Slim:     no curl/wget-ssl, no iptables-compat, no nathelpers, no tunnel mods,"
-echo "           no ath11k-pci, no extra fs drivers, no nss-drv-gre (v4 redundancy cleanup)"
+echo "           no ath11k-pci, no extra fs drivers, no nss tunnel submodules (v4)"
 echo " Overlay: CN opkg mirrors, LAN 192.168.2.1, open WiFi (via files/)"
 echo "============================================"
 
